@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::io::Read;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct Attachment {
@@ -10,6 +9,7 @@ pub(crate) struct Attachment {
 }
 
 impl Attachment {
+    #[allow(dead_code)]
     pub(crate) async fn download(&self) -> Vec<u8> {
         reqwest::get(&self.url).await.unwrap().bytes().await.unwrap().to_vec()
     }

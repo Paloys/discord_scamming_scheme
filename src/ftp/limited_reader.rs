@@ -1,10 +1,7 @@
+use pin_project::pin_project;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use std::time::Duration;
-
-use pin_project::pin_project;
 use tokio::io::{AsyncRead, ReadBuf};
-use tokio::time::{interval, Interval};
 
 #[pin_project]
 pub struct LimitedAsyncReader<R: AsyncRead> {

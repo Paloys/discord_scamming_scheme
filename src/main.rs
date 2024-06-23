@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::{env, fs};
 
@@ -6,7 +7,7 @@ use async_trait::async_trait;
 use libunftp::auth::UserDetail;
 use libunftp::storage::{Error, ErrorKind, Fileinfo, Metadata, StorageBackend};
 use libunftp::ServerBuilder;
-use tokio::io::{AsyncRead, AsyncReadExt, BufReader};
+use tokio::io::{AsyncRead, BufReader};
 
 use discord::bot::Bot;
 use ftp::limited_reader::LimitedAsyncReader;
@@ -30,11 +31,7 @@ impl DiscordBackend {
 
     async fn handle_file(&self, data: Vec<u8>) -> Result<(u64, String, String), String> {
         let size = data.len();
-        let response = self
-            .client
-            .send_message(1252591907670982795, "", Some(data), None)
-            .await
-            .expect("Failed to send message");
+        let response = self.client.send_message("", Some(data), None).await.expect("Failed to send message");
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
         let message = response.json::<Message>().await.unwrap();
         Ok((size as u64, message.id.unwrap(), message.attachments[0].url.clone()))
@@ -60,11 +57,19 @@ impl<User: UserDetail> StorageBackend<User> for DiscordBackend {
 
     async fn get<P: AsRef<Path> + Send + Debug>(
         &self,
-        user: &User,
+        _user: &User,
         path: P,
-        start_pos: u64,
+        _start_pos: u64,
     ) -> libunftp::storage::Result<Box<dyn AsyncRead + Send + Sync + Unpin>> {
-        todo!("get")
+        let metadata = Meta::from_json(path.as_ref().to_path_buf());
+        let mut data_vec = Vec::new();
+        for (_, url) in metadata.ids_and_urls.iter() {
+            let bytes = self.client.download_attachment(url).await.unwrap();
+            data_vec.extend_from_slice(&bytes);
+        }
+        let cursor = Cursor::new(data_vec);
+        let async_reader = BufReader::with_capacity(1 << 20, cursor);
+        Ok(Box::new(async_reader))
     }
 
     async fn put<P: AsRef<Path> + Send + Debug, R: AsyncRead + Send + Sync + Unpin + 'static>(
@@ -121,10 +126,7 @@ impl<User: UserDetail> StorageBackend<User> for DiscordBackend {
         let mut files = Files::from_json();
         let path = path.as_ref().to_path_buf();
         for (id, _) in files.files.get(&path).unwrap().ids_and_urls.iter() {
-            self.client
-                .delete_message(1252591907670982795, id.parse().unwrap())
-                .await
-                .expect("Failed to delete message");
+            self.client.delete_message(id.parse().unwrap()).await.expect("Failed to delete message");
         }
         files.files.remove(&path);
         files
@@ -157,12 +159,12 @@ impl<User: UserDetail> StorageBackend<User> for DiscordBackend {
     }
 
     async fn rename<P: AsRef<Path> + Send + Debug>(&self, _user: &User, from: P, to: P) -> libunftp::storage::Result<()> {
-        // TODO: Implement this for folders
         let mut files = Files::from_json();
         let from = from.as_ref().to_path_buf();
         let to = to.as_ref().to_path_buf();
         if files.files.get(&from).unwrap().is_dir {
             return Err(Error::new(ErrorKind::CommandNotImplemented, "Cannot rename folders (yet)"));
+            // TODO: Implement this for folders
         }
         files
             .folders
@@ -188,7 +190,7 @@ impl<User: UserDetail> StorageBackend<User> for DiscordBackend {
         Ok(files.to_json().expect("Failed to write to data.json"))
     }
 
-    async fn cwd<P: AsRef<Path> + Send + Debug>(&self, _user: &User, path: P) -> libunftp::storage::Result<()> {
+    async fn cwd<P: AsRef<Path> + Send + Debug>(&self, _user: &User, _path: P) -> libunftp::storage::Result<()> {
         Ok(())
     }
 }
@@ -196,7 +198,10 @@ impl<User: UserDetail> StorageBackend<User> for DiscordBackend {
 #[tokio::main]
 async fn main() {
     let server = ServerBuilder::new(Box::new(|| {
-        DiscordBackend::new(Bot::new(env::var("DISCORD_TOKEN").expect("DISCORD_TOKEN not set")))
+        DiscordBackend::new(Bot::new(
+            env::var("DISCORD_TOKEN").expect("DISCORD_TOKEN not set"),
+            env::var("DISCORD_CHANNEL_ID").expect("DISCORD_CHANNEL_ID").parse().unwrap(),
+        ))
     }))
     .greeting("Welcome to my FTP server")
     .passive_ports(50000..65535)
