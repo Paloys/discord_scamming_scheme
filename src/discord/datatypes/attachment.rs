@@ -11,12 +11,6 @@ pub(crate) struct Attachment {
 
 impl Attachment {
     pub(crate) async fn download(&self) -> Vec<u8> {
-        reqwest::get(&self.url)
-            .await
-            .unwrap()
-            .bytes()
-            .await
-            .unwrap()
-            .to_vec()
+        reqwest::get(&self.url).await.unwrap().bytes().await.unwrap().to_vec()
     }
 }

@@ -6,9 +6,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-libunftp = "0.20.0"
+libunftp = "0.20.1"
 tokio = { version = "1", features = ["full"] }
 reqwest = { version = "0.12.5", features = ["json", "multipart"] }
 serde = { version = "1.0.203", features = ["derive"] }
 serde_json = "1.0.117"
 async-trait = "0.1.80"
+pin-project = "1.1.5"
