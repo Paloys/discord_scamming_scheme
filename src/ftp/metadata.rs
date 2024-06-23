@@ -15,7 +15,7 @@ pub struct Meta {
     pub(crate) modified: SystemTime,
     pub(crate) gid: u32,
     pub(crate) uid: u32,
-    pub(crate) urls: Vec<String>,
+    pub(crate) ids_and_urls: Vec<(String, String)>,
 }
 
 #[derive(Serialize, Deserialize)]

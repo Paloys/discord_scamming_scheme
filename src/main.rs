@@ -28,7 +28,7 @@ impl DiscordBackend {
         DiscordBackend { client }
     }
 
-    async fn handle_file(&self, data: Vec<u8>) -> Result<(u64, String), String> {
+    async fn handle_file(&self, data: Vec<u8>) -> Result<(u64, String, String), String> {
         let size = data.len();
         let response = self
             .client
@@ -36,7 +36,8 @@ impl DiscordBackend {
             .await
             .expect("Failed to send message");
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-        Ok((size as u64, response.json::<Message>().await.unwrap().attachments[0].url.clone()))
+        let message = response.json::<Message>().await.unwrap();
+        Ok((size as u64, message.id.unwrap(), message.attachments[0].url.clone()))
     }
 }
 
@@ -87,7 +88,7 @@ impl<User: UserDetail> StorageBackend<User> for DiscordBackend {
             modified: std::time::SystemTime::now(),
             gid: 0,
             uid: 0,
-            urls: Vec::new(),
+            ids_and_urls: Vec::new(),
         };
         let path = path.as_ref().to_path_buf();
         let mut tot = 0u64;
@@ -105,9 +106,9 @@ impl<User: UserDetail> StorageBackend<User> for DiscordBackend {
                 break;
             }
 
-            let (bytes_uploaded, url) = self.handle_file(buffer).await.expect("Failed to handle file");
+            let (bytes_uploaded, id, url) = self.handle_file(buffer).await.expect("Failed to handle file");
             metadata.len += bytes_uploaded;
-            metadata.urls.push(url);
+            metadata.ids_and_urls.push((id, url));
 
             tot += bytes_uploaded;
         }
@@ -117,7 +118,21 @@ impl<User: UserDetail> StorageBackend<User> for DiscordBackend {
     }
 
     async fn del<P: AsRef<Path> + Send + Debug>(&self, _user: &User, path: P) -> libunftp::storage::Result<()> {
-        todo!("del")
+        let mut files = Files::from_json();
+        let path = path.as_ref().to_path_buf();
+        for (id, _) in files.files.get(&path).unwrap().ids_and_urls.iter() {
+            self.client
+                .delete_message(1252591907670982795, id.parse().unwrap())
+                .await
+                .expect("Failed to delete message");
+        }
+        files.files.remove(&path);
+        files
+            .folders
+            .get_mut(&path.parent().unwrap().to_path_buf())
+            .unwrap()
+            .retain(|x| x != &path);
+        Ok(files.to_json().expect("Failed to write to data.json"))
     }
 
     async fn mkd<P: AsRef<Path> + Send + Debug>(&self, _user: &User, path: P) -> libunftp::storage::Result<()> {
@@ -135,7 +150,7 @@ impl<User: UserDetail> StorageBackend<User> for DiscordBackend {
                 modified: std::time::SystemTime::now(),
                 gid: 0,
                 uid: 0,
-                urls: Vec::new(),
+                ids_and_urls: Vec::new(),
             },
         );
         Ok(files.to_json().expect("Failed to write to data.json"))

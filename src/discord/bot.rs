@@ -56,4 +56,12 @@ impl Bot {
             .send()
             .await
     }
+
+    pub(crate) async fn delete_message(&self, channel_id: u64, message_id: u64) -> Result<Response, Error> {
+        self.client
+            .delete(format!("https://discord.com/api/v10/channels/{}/messages/{}", channel_id, message_id))
+            .header("Authorization", format!("Bot {}", self.token))
+            .send()
+            .await
+    }
 }
