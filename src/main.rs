@@ -197,6 +197,10 @@ impl<User: UserDetail> StorageBackend<User> for DiscordBackend {
 
 #[tokio::main]
 async fn main() {
+    if !Path::new("data.json").exists() {
+        let files = Files::from_json();
+        files.to_json().expect("Failed to write to data.json");
+    }
     let server = ServerBuilder::new(Box::new(|| {
         DiscordBackend::new(Bot::new(
             env::var("DISCORD_TOKEN").expect("DISCORD_TOKEN not set"),
