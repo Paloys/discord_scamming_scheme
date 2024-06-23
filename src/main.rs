@@ -198,7 +198,7 @@ impl<User: UserDetail> StorageBackend<User> for DiscordBackend {
 #[tokio::main]
 async fn main() {
     if !Path::new("data.json").exists() {
-        let files = Files::from_json();
+        let files = Files::new();
         files.to_json().expect("Failed to write to data.json");
     }
     let server = ServerBuilder::new(Box::new(|| {

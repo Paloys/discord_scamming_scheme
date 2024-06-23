@@ -36,6 +36,12 @@ impl Meta {
 }
 
 impl Files {
+    pub fn new() -> Self {
+        Self {
+            files: HashMap::new(),
+            folders: HashMap::from([(PathBuf::from("/"), Vec::new())]),
+        }
+    }
     pub fn to_json(&self) -> std::io::Result<()> {
         let result = fs::write("data.json", serde_json::to_string(self).unwrap());
         result
