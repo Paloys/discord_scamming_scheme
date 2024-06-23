@@ -4,7 +4,7 @@ use std::{env, fs};
 
 use async_trait::async_trait;
 use libunftp::auth::UserDetail;
-use libunftp::storage::{Fileinfo, Metadata, StorageBackend};
+use libunftp::storage::{Error, ErrorKind, Fileinfo, Metadata, StorageBackend};
 use libunftp::ServerBuilder;
 use tokio::io::{AsyncRead, AsyncReadExt, BufReader};
 
@@ -157,11 +157,35 @@ impl<User: UserDetail> StorageBackend<User> for DiscordBackend {
     }
 
     async fn rename<P: AsRef<Path> + Send + Debug>(&self, _user: &User, from: P, to: P) -> libunftp::storage::Result<()> {
-        todo!("rename")
+        // TODO: Implement this for folders
+        let mut files = Files::from_json();
+        let from = from.as_ref().to_path_buf();
+        let to = to.as_ref().to_path_buf();
+        if files.files.get(&from).unwrap().is_dir {
+            return Err(Error::new(ErrorKind::CommandNotImplemented, "Cannot rename folders (yet)"));
+        }
+        files
+            .folders
+            .get_mut(&from.parent().unwrap().to_path_buf())
+            .unwrap()
+            .retain(|x| x != &from);
+        files.folders.get_mut(&to.parent().unwrap().to_path_buf()).unwrap().push(to.clone());
+        let metadata = files.files.remove(&from).unwrap();
+        files.files.insert(to.clone(), metadata);
+        Ok(files.to_json().expect("Failed to write to data.json"))
     }
 
     async fn rmd<P: AsRef<Path> + Send + Debug>(&self, _user: &User, path: P) -> libunftp::storage::Result<()> {
-        todo!("rmd")
+        let mut files = Files::from_json();
+        let path = path.as_ref().to_path_buf();
+        files.files.remove(&path);
+        files
+            .folders
+            .get_mut(&path.parent().unwrap().to_path_buf())
+            .unwrap()
+            .retain(|x| x != &path);
+        files.folders.remove(&path);
+        Ok(files.to_json().expect("Failed to write to data.json"))
     }
 
     async fn cwd<P: AsRef<Path> + Send + Debug>(&self, _user: &User, path: P) -> libunftp::storage::Result<()> {
