@@ -18,15 +18,6 @@ impl Bot {
         }
     }
 
-    #[allow(dead_code)]
-    pub(crate) async fn get_message(&self, channel_id: u64, message_id: u64) -> Result<Response, Error> {
-        self.client
-            .get(format!("https://discord.com/api/v10/channels/{}/messages/{}", channel_id, message_id))
-            .header("Authorization", format!("Bot {}", self.token))
-            .send()
-            .await
-    }
-
     pub(crate) async fn send_message(&self, content: &str, attachment: Option<Vec<u8>>, reply: Option<String>) -> Result<Response, Error> {
         let mut form = Form::new().text("content", content.to_string());
         if let Some(attachment) = attachment {
