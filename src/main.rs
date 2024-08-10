@@ -63,8 +63,8 @@ impl<User: UserDetail> StorageBackend<User> for DiscordBackend {
     ) -> libunftp::storage::Result<Box<dyn AsyncRead + Send + Sync + Unpin>> {
         let metadata = Meta::from_json(path.as_ref().to_path_buf());
         let mut data_vec = Vec::new();
-        for (_, url) in metadata.ids_and_urls.iter() {
-            let bytes = self.client.download_attachment(url).await.unwrap();
+        for (id, url) in metadata.ids_and_urls.iter() {
+            let bytes = self.client.download_attachment(url, id).await.unwrap();
             data_vec.extend_from_slice(&bytes);
         }
         let cursor = Cursor::new(data_vec);
@@ -204,13 +204,13 @@ async fn main() {
     let server = ServerBuilder::new(Box::new(|| {
         DiscordBackend::new(Bot::new(
             env::var("DISCORD_TOKEN").expect("DISCORD_TOKEN not set"),
-            env::var("DISCORD_CHANNEL_ID").expect("DISCORD_CHANNEL_ID").parse().unwrap(),
+            env::var("DISCORD_CHANNEL_ID").expect("DISCORD_CHANNEL_ID not set").parse().unwrap(),
         ))
     }))
-    .greeting("Welcome to my FTP server")
-    .passive_ports(50000..65535)
-    .build()
-    .unwrap();
+        .greeting("Welcome to my FTP server")
+        .passive_ports(50000..65535)
+        .build()
+        .unwrap();
 
     println!("Server running on localhost:2121");
     server.listen("127.0.0.1:2121").await.expect("Server crashed");

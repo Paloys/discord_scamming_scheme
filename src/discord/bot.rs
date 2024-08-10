@@ -35,7 +35,7 @@ impl Bot {
                     Some(reply) => Some(MessageReference { message_id: reply }),
                 },
             })
-            .unwrap(),
+                .unwrap(),
         );
         self.client
             .post(format!("https://discord.com/api/v10/channels/{}/messages", self.channel_id))
@@ -56,14 +56,34 @@ impl Bot {
             .await
     }
 
-    pub(crate) async fn download_attachment(&self, url: &String) -> Result<Vec<u8>, Error> {
-        self.client
-            .get(url)
-            // .header("Authorization", format!("Bot {}", self.token)) // Unneeded ?
-            .send()
-            .await?
-            .bytes()
-            .await
-            .map(|bytes| bytes.to_vec())
+    pub(crate) async fn download_attachment(&self, url: &String, message_id: &String) -> Result<Vec<u8>, Error> {
+        let mut response = self.client.get(url).send().await?;
+
+        let text = response.text().await?;
+        if text == "This content is no longer available." {
+            let url2 = self.client
+                .get(format!(
+                    "https://discord.com/api/v10/channels/{}/messages/{}",
+                    self.channel_id, message_id
+                ))
+                .header("Authorization", format!("Bot {}", self.token))
+                .send()
+                .await?
+                .json::<Message>()
+                .await?
+                .attachments
+                .get(0)
+                .unwrap()
+                .url
+                .clone();
+
+            response = self.client.get(&url2).send().await?;
+        } else {
+            // If the content is not "This content is no longer available."
+            // you may want to handle `response` as bytes instead of converting to text.
+            response = self.client.get(url).send().await?;
+        }
+
+        response.bytes().await.map(|bytes| bytes.to_vec())
     }
 }
